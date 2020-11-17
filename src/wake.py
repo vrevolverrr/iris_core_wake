@@ -27,7 +27,7 @@ class Speech:
 
         self.RATE: int = self.input_shape[1]
         self.MODELNUMCLASSES: int = self.output_shape[1]
-        self.BLOCKSIZE: int = 2752
+        self.BLOCKSIZE: int = 1376 # 2752
         self.OVERLAPFACTOR: int = 0.4
         self.TRIGGERPROBABILITY = 0.85
 
@@ -46,6 +46,7 @@ class Speech:
         self.lastBuffer: np.ndarray = None
 
         self.isRecording = False
+        self.pendingHotword = False
 
     def __recordingCallback(self, chunk, _, __, ___):
         self.bufferqueue.put(chunk)
@@ -59,9 +60,10 @@ class Speech:
             self.__interpreter.invoke()
 
             output = np.squeeze(self.__interpreter.get_tensor(self.output_tensor))
-            
+
             if output[1] > self.TRIGGERPROBABILITY:
-                print(f"Hotword (probability: {output[1]})")
+                if self.pendingHotword: self.pendingHotword = False
+                print("Hotword")
 
     def __bufferprocessThread(self):
         time.sleep(1)
@@ -86,8 +88,7 @@ class Speech:
             while True:
                 if self.isRecording:
                     sd.sleep(1000)
-                else:
-                    break
+                else: break
 
     def start(self):
         self.isRecording = True
@@ -100,6 +101,8 @@ class Speech:
     
     def stop(self):
         self.isRecording = False
+        self.bufferqueue = queue.Queue()
+        self.recognitionqueue = queue.Queue()
 
-s = Speech("D:\PersonalProjects\iris-core-wake\model\soundclassifier.tflite")
+s = Speech("D:\PersonalProjects\iris-core-wake\model\irishotword.tflite")
 s.start()
