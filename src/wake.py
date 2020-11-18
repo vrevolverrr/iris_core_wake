@@ -27,9 +27,9 @@ class Speech:
 
         self.RATE: int = self.input_shape[1]
         self.MODELNUMCLASSES: int = self.output_shape[1]
-        self.BLOCKSIZE: int = 1376 # 2752
+        self.BLOCKSIZE: int = 2752
         self.OVERLAPFACTOR: int = 0.4
-        self.TRIGGERPROBABILITY = 0.85
+        self.TRIGGERPROBABILITY = 0.9
 
         try:
             assert self.RATE % self.BLOCKSIZE == 0
@@ -96,6 +96,7 @@ class Speech:
         threading.Thread(target=self.__bufferprocessThread).start()
         threading.Thread(target=self.__recordingThread).start()
 
+        print("event.onreadyevent")
         input()
         self.stop()
     
