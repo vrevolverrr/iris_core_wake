@@ -5,6 +5,9 @@ import time
 import threading
 import numpy as np
 import sounddevice as sd
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
 import tensorflow as tf
 from tensorflow.lite.python.interpreter import Interpreter
 
@@ -12,7 +15,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 np.set_printoptions(precision=6, suppress=True)
 
 class Speech:
-    def __init__(self, model_path):
+    def __init__(self, model_path, probability_threshold):
         self.model_path = model_path
         
         self.__interpreter: Interpreter = tf.lite.Interpreter(model_path=self.model_path)
@@ -29,7 +32,7 @@ class Speech:
         self.MODELNUMCLASSES: int = self.output_shape[1]
         self.BLOCKSIZE: int = 2752
         self.OVERLAPFACTOR: int = 0.4
-        self.TRIGGERPROBABILITY = 0.9
+        self.PROBABILITYTRESHHOLD = probability_threshold
 
         try:
             assert self.RATE % self.BLOCKSIZE == 0
@@ -43,10 +46,10 @@ class Speech:
 
         self.bufferqueue = queue.Queue()
         self.recognitionqueue = queue.Queue()
+        self.resultqueue = queue.Queue()
         self.lastBuffer: np.ndarray = None
 
         self.isRecording = False
-        self.pendingHotword = False
 
     def __recordingCallback(self, chunk, _, __, ___):
         self.bufferqueue.put(chunk)
@@ -60,10 +63,8 @@ class Speech:
             self.__interpreter.invoke()
 
             output = np.squeeze(self.__interpreter.get_tensor(self.output_tensor))
-
-            if output[1] > self.TRIGGERPROBABILITY:
-                if self.pendingHotword: self.pendingHotword = False
-                print("Hotword")
+            if output[1] > self.PROBABILITYTRESHHOLD:
+                self.resultqueue.put(str(output[1]))
 
     def __bufferprocessThread(self):
         time.sleep(1)
@@ -96,14 +97,18 @@ class Speech:
         threading.Thread(target=self.__bufferprocessThread).start()
         threading.Thread(target=self.__recordingThread).start()
 
-        print("event.onreadyevent")
-        input()
-        self.stop()
+        sys.stdout.write("event.onreadyevent\n")
+        sys.stdout.flush()
+
+        while True:
+            if self.resultqueue.not_empty:
+                sys.stdout.write(self.resultqueue.get() + "\n")
+                sys.stdout.flush()
     
     def stop(self):
         self.isRecording = False
         self.bufferqueue = queue.Queue()
         self.recognitionqueue = queue.Queue()
 
-s = Speech("D:\PersonalProjects\iris-core-wake\model\irishotword.tflite")
+s = Speech("D:\PersonalProjects\iris-core-wake\model\irishotword.tflite", probability_threshold=float(sys.argv[1]))
 s.start()
